@@ -76,41 +76,47 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 const EXTERNAL_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/blockchain_dms';
 
-async function startServer() {
-  let mongoUri = EXTERNAL_URI;
-
+let isConnected = false;
+async function connectDB() {
+  if (isConnected) return;
   try {
-    // Try real MongoDB first (1-second timeout)
-    await mongoose.connect(EXTERNAL_URI, { serverSelectionTimeoutMS: 1500 });
+    await mongoose.connect(EXTERNAL_URI, { serverSelectionTimeoutMS: 5000 });
     console.log('✅ Connected to external MongoDB');
-  } catch {
-    // Fall back to in-memory MongoDB (works with no install)
+    isConnected = true;
+    await seedDatabase();
+  } catch (err) {
+    if (process.env.NODE_ENV === 'production') {
+      console.error('❌ MongoDB Connection Error:', err.message);
+      throw err;
+    }
     console.log('⚡ External MongoDB unavailable — starting in-memory MongoDB...');
     const { MongoMemoryServer } = require('mongodb-memory-server');
     const mongod = await MongoMemoryServer.create();
-    mongoUri = mongod.getUri();
+    const mongoUri = mongod.getUri();
     await mongoose.disconnect();
     await mongoose.connect(mongoUri);
-    console.log('✅ In-memory MongoDB started:', mongoUri.split('?')[0]);
+    console.log('✅ In-memory MongoDB started');
+    isConnected = true;
+    await seedDatabase();
   }
+}
 
-  // Seed demo users + sample data
-  await seedDatabase();
+// Middleware to ensure DB connection for serverless functions
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Database connection failed' });
+  }
+});
 
+// For local development
+if (process.env.NODE_ENV !== 'production' || require.main === module) {
   app.listen(PORT, () => {
     console.log(`\n🚀 BlockDMS API running → http://localhost:${PORT}`);
-    console.log(`🔗 Health check       → http://localhost:${PORT}/health`);
-    console.log('\n🔑 Demo Credentials:');
-    console.log('   👑 Admin    → admin@dms.com      / Admin@123');
-    console.log('   🏢 HOD      → hod@dms.com        / Hod@123');
-    console.log('   👤 Employee → employee@dms.com   / Employee@123');
-    console.log('\n📦 Blockchain: Hyperledger Fabric (Simulated)');
-    console.log('📁 Storage:    IPFS (Simulated with real SHA-256 hashing)');
-    console.log('\n✨ Frontend: http://localhost:5173\n');
+    console.log(`🔗 Health check       → http://localhost:${PORT}/health\n`);
   });
 }
 
-startServer().catch(err => {
-  console.error('❌ Failed to start server:', err.message);
-  process.exit(1);
-});
+module.exports = app;
