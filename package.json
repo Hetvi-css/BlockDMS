@@ -2,10 +2,12 @@
   "name": "blockchain-dms-monorepo",
   "version": "1.0.0",
   "private": true,
+  "scripts": {
+    "build": "cd client && npm run build"
+  },
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.6",
-    "crypto": "^1.0.1",
     "dotenv": "^16.6.1",
     "express": "^4.22.1",
     "express-rate-limit": "^7.5.1",
