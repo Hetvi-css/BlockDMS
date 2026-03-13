@@ -1,4 +1,5 @@
 const express = require('express');
+console.log('🚀 Server initializing for environment:', process.env.NODE_ENV);
 const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
