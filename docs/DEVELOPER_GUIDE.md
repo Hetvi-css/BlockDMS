@@ -192,6 +192,7 @@ mongod --dbpath C:\data\db
 ```powershell
 cd blockchain-dms/server
 npm run dev
+
 ```
 Expected output:
 ```

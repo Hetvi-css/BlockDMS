@@ -7,6 +7,10 @@ const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
+// Default secrets for local development
+process.env.JWT_SECRET = process.env.JWT_SECRET || 'local_secret_key_12345';
+process.env.NODE_ENV = process.env.NODE_ENV || 'development';
+
 const authRoutes      = require('./routes/auth.routes');
 const userRoutes      = require('./routes/user.routes');
 const documentRoutes  = require('./routes/document.routes');
@@ -134,9 +138,16 @@ app.use(async (req, res, next) => {
 
 // For local development
 if (process.env.NODE_ENV !== 'production' || require.main === module) {
-  app.listen(PORT, () => {
+  app.listen(PORT, async () => {
     console.log(`\n🚀 BlockDMS API running → http://localhost:${PORT}`);
     console.log(`🔗 Health check       → http://localhost:${PORT}/health\n`);
+    
+    // Connect on startup so first request doesn't timeout
+    try {
+      await connectDB();
+    } catch (err) {
+      console.error('Failed to connect on startup:', err.message);
+    }
   });
 }
 
