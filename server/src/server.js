@@ -78,17 +78,29 @@ const EXTERNAL_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/block
 
 let isConnected = false;
 async function connectDB() {
-  if (isConnected) return;
+  if (isConnected && mongoose.connection.readyState === 1) return;
+  
+  console.log('🔗 Attempting to connect to MongoDB...');
   try {
-    await mongoose.connect(EXTERNAL_URI, { serverSelectionTimeoutMS: 5000 });
+    // Standard connection for Vercel
+    await mongoose.connect(EXTERNAL_URI, { 
+      serverSelectionTimeoutMS: 5000,
+      connectTimeoutMS: 10000 
+    });
     console.log('✅ Connected to external MongoDB');
     isConnected = true;
+    
+    // Seed only if necessary (check is fast)
     await seedDatabase();
   } catch (err) {
     if (process.env.NODE_ENV === 'production') {
       console.error('❌ MongoDB Connection Error:', err.message);
-      throw err;
+      // Detailed error for debugging
+      const errorMsg = `DB Connection Error: ${err.message}`;
+      throw new Error(errorMsg);
     }
+    
+    // Fall back to in-memory MongoDB for local dev
     console.log('⚡ External MongoDB unavailable — starting in-memory MongoDB...');
     const { MongoMemoryServer } = require('mongodb-memory-server');
     const mongod = await MongoMemoryServer.create();
@@ -103,11 +115,19 @@ async function connectDB() {
 
 // Middleware to ensure DB connection for serverless functions
 app.use(async (req, res, next) => {
+  // Skip DB check for health
+  if (req.path === '/health') return next();
+
   try {
     await connectDB();
     next();
   } catch (err) {
-    res.status(500).json({ success: false, message: 'Database connection failed' });
+    console.error('Middleware DB Error:', err.message);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Database connection failed',
+      error: process.env.NODE_ENV === 'production' ? err.message : err.stack
+    });
   }
 });
 
